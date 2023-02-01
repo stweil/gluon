@@ -4,6 +4,15 @@ device('asus-rt-ac51u', 'asus_rt-ac51u', {
 	factory = false,
 })
 
+-- Edimax
+
+device('edimax-br-6208ac-v2', 'edimax_br-6208ac-v2', {
+	factory = false,
+})
+
+device('edimax-br-6478ac-v2', 'edimax_br-6478ac-v2', {
+	factory = false,
+})
 
 -- GL.iNet
 
