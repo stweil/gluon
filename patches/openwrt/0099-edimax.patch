@@ -1,0 +1,219 @@
+From ff55ab3cb5c6fbd88dd588c5b11251e8d54d2476 Mon Sep 17 00:00:00 2001
+From: Stefan Weil <sw@weilnetz.de>
+Date: Sat, 21 Jan 2023 09:47:32 +0100
+Subject: [PATCH] Add edimax-br-6208ac-v2
+
+Signed-off-by: Stefan Weil <sw@weilnetz.de>
+---
+ .../dts/mt7620a_edimax_br-6208ac-v2.dts       | 172 ++++++++++++++++++
+ target/linux/ramips/image/mt7620.mk           |  15 ++
+ 2 files changed, 187 insertions(+)
+ create mode 100644 target/linux/ramips/dts/mt7620a_edimax_br-6208ac-v2.dts
+
+diff --git a/target/linux/ramips/dts/mt7620a_edimax_br-6208ac-v2.dts b/target/linux/ramips/dts/mt7620a_edimax_br-6208ac-v2.dts
+new file mode 100644
+index 0000000000..8eb9e57f58
+--- /dev/null
++++ b/target/linux/ramips/dts/mt7620a_edimax_br-6208ac-v2.dts
+@@ -0,0 +1,172 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2023 Stefan Weil <sw@weilnetz.de>
++ */
++
++#include "mt7620a.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/mtd/partitions/uimage.h>
++
++/ {
++	compatible = "edimax,br-6208ac-v2", "ralink,mt7620a-soc";
++	model = "Edimax BR-6208AC v2";
++
++	aliases {
++		led-boot = &led_power;
++		led-failsafe = &led_power;
++		led-running = &led_power;
++		led-upgrade = &led_power;
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		reset_wps {
++			label = "reset_wps";
++			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led_power: power {
++			label = "white:power";
++			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
++		};
++
++		internet {
++			label = "blue:internet";
++			gpios = <&gpio0 7 GPIO_ACTIVE_LOW>;
++		};
++
++		wlan {
++			label = "blue:wlan";
++			gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
++		};
++
++		usb {
++			label = "blue:usb";
++			gpios = <&gpio0 14 GPIO_ACTIVE_LOW>;
++			trigger-sources = <&ohci_port1>, <&ehci_port1>;
++			linux,default-trigger = "usbport";
++		};
++	};
++
++	gpio_export {
++		compatible = "gpio-export";
++		#size-cells = <0>;
++		usb-power {
++			gpio-export,name="usb-power";
++			gpio-export,output=<1>;
++			gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
++		};
++	};
++};
++
++&gpio2 {
++	status = "okay";
++};
++
++&spi0 {
++	status = "okay";
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <10000000>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "u-boot";
++				reg = <0x0 0x30000>;
++				read-only;
++			};
++
++			partition@30000 {
++				label = "u-boot-env";
++				reg = <0x30000 0x10000>;
++				read-only;
++			};
++
++			factory: partition@40000 {
++				label = "factory";
++				reg = <0x40000 0x10000>;
++				read-only;
++			};
++
++			partition@50000 {
++				label = "cimage";
++				reg = <0x50000 0x20000>;
++				read-only;
++			};
++
++			partition@70000 {
++				compatible = "openwrt,uimage", "denx,uimage";
++				openwrt,offset = <FW_EDIMAX_OFFSET>;
++				openwrt,partition-magic = <FW_MAGIC_EDIMAX>;
++				label = "firmware";
++				reg = <0x00070000 0x00790000>;
++			};
++		};
++	};
++};
++
++&state_default {
++	gpio {
++		groups = "i2c", "uartf", "nd_sd";
++		function = "gpio";
++	};
++};
++
++&ethernet {
++	nvmem-cells = <&macaddr_factory_4>;
++	nvmem-cell-names = "mac-address";
++
++	mediatek,portmap = "llllw";
++};
++
++&gsw {
++	mediatek,ephy-base = /bits/ 8 <12>;
++};
++
++&wmac {
++	ralink,mtd-eeprom = <&factory 0x0>;
++};
++
++&pcie {
++	status = "okay";
++};
++
++&pcie0 {
++	wifi@0,0 {
++		reg = <0x0000 0 0 0 0>;
++		mediatek,mtd-eeprom = <&factory 0x8000>;
++		mediatek,2ghz = <0>;
++	};
++};
++
++&ehci {
++	status = "okay";
++};
++
++&ohci {
++	status = "okay";
++};
++
++&factory {
++	compatible = "nvmem-cells";
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	macaddr_factory_4: macaddr@4 {
++		reg = <0x4 0x6>;
++	};
++};
+diff --git a/target/linux/ramips/image/mt7620.mk b/target/linux/ramips/image/mt7620.mk
+index 6089750407..1a59541777 100644
+--- a/target/linux/ramips/image/mt7620.mk
++++ b/target/linux/ramips/image/mt7620.mk
+@@ -366,6 +366,21 @@ define Device/dovado_tiny-ac
+ endef
+ TARGET_DEVICES += dovado_tiny-ac
+ 
++define Device/edimax_br-6208ac-v2
++  SOC := mt7620a
++  DEVICE_VENDOR := Edimax
++  DEVICE_MODEL := BR-6208AC
++  DEVICE_VARIANT := V2
++  BLOCKSIZE := 64k
++  IMAGE_SIZE := 7744k
++  IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
++	edimax-header -s CSYS -m RN71 -f 0x70000 -S 0x01100000 | pad-rootfs | \
++	check-size | append-metadata
++  DEVICE_PACKAGES := kmod-mt76x2 kmod-mt76x0e kmod-usb2 kmod-usb-ohci \
++	kmod-usb-ledtrig-usbport
++endef
++TARGET_DEVICES += edimax_br-6208ac-v2
++
+ define Device/edimax_br-6478ac-v2
+   SOC := mt7620a
+   DEVICE_VENDOR := Edimax
+-- 
+2.30.2
+
