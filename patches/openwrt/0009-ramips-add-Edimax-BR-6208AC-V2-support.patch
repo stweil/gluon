@@ -1,0 +1,318 @@
+From: Stefan Weil <sw@weilnetz.de>
+Date: Thu, 2 Mar 2023 21:45:50 +0100
+Subject: ramips: add Edimax BR-6208AC V2 support
+
+Specifications:
+- Device: Edimax BR-6208AC V2
+- SoC: MT7620A
+- Flash: 16 MiB
+- RAM: 64 MiB
+- Switch: 1 WAN, 3 LAN (10/100 Mbps)
+- WiFi: MT7620 2.4 GHz + MT7610E 5 GHz
+- LEDs: 1x POWER (green, not configurable)
+        1x Firmware (green, configurable)
+        1x Internet (green, configurable)
+        1x VPN (green, configurable)
+        1x 2.4G (green, not configurable)
+        1x 5G (green, not configurable)
+
+Normal installation:
+- Upload the sysupgrade image via the default web interface
+
+Installation with U-Boot and TFTP:
+- Requires a TFTP server which provides the sysupgrade image
+- Requires a connection to the serial port of the device, rate 57600
+
+Signed-off-by: Stefan Weil <sw@weilnetz.de>
+
+diff --git a/target/linux/ramips/dts/mt7620a_edimax_br-6208ac-v2.dts b/target/linux/ramips/dts/mt7620a_edimax_br-6208ac-v2.dts
+new file mode 100644
+index 0000000000000000000000000000000000000000..5f1c01b35e9090634f7bfd8c8863bfd280a21bca
+--- /dev/null
++++ b/target/linux/ramips/dts/mt7620a_edimax_br-6208ac-v2.dts
+@@ -0,0 +1,217 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * Copyright (C) 2023 Stefan Weil <sw@weilnetz.de>
++ */
++
++#include "mt7620a.dtsi"
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/leds/common.h>
++#include <dt-bindings/mtd/partitions/uimage.h>
++
++/ {
++	compatible = "edimax,br-6208ac-v2", "ralink,mt7620a-soc";
++	model = "Edimax BR-6208AC v2";
++
++	aliases {
++		led-boot = &led_power;
++		led-failsafe = &led_power;
++		led-running = &led_power;
++		led-upgrade = &led_firmware;
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		// Vendor firmware: /proc/RESET_BUTTON
++		reset_wps {
++			label = "reset_wps";
++			gpios = <&gpio0 1 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++		};
++	};
++
++	// Vendor firmware: /proc/driver/led
++	leds {
++		compatible = "gpio-leds";
++
++		led_power: power {
++			label = "green:power";
++			color = <LED_COLOR_ID_GREEN>;
++			function = LED_FUNCTION_POWER;
++			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
++		};
++
++		// RALINK_REG_PIO3924DATA 39-24
++		led_internet: internet {
++			label = "green:internet";
++			color = <LED_COLOR_ID_GREEN>;
++			gpios = <&gpio1 15 GPIO_ACTIVE_LOW>;
++		};
++
++		// RALINK_REG_PIO7140DATA 44-40
++		led_wlan_2_4ghz: wlan_2_4ghz {
++			label = "green:wlan2g";
++			color = <LED_COLOR_ID_GREEN>;
++			function = LED_FUNCTION_WLAN;
++			gpios = <&gpio2 4 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "phy1tpt";
++		};
++
++		// RALINK_REG_PIO7140DATA 43-40
++		led_wlan_5ghz: wlan_5ghz {
++			label = "green:wlan5g";
++			color = <LED_COLOR_ID_GREEN>;
++			function = LED_FUNCTION_WLAN;
++			gpios = <&gpio2 3 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "phy0tpt";
++		};
++
++		// RALINK_REG_PIO7140DATA 42-40
++		led_firmware: firmware {
++			label = "green:firmware";
++			color = <LED_COLOR_ID_GREEN>;
++			gpios = <&gpio2 2 GPIO_ACTIVE_LOW>;
++			// default-state = "keep";
++		};
++
++		// RALINK_REG_PIO7140DATA 41-40
++		led_vpn: vpn {
++			label = "green:vpn";
++			color = <LED_COLOR_ID_GREEN>;
++			gpios = <&gpio2 1 GPIO_ACTIVE_LOW>;
++		};
++	};
++};
++
++&gdma {
++	status = "okay";
++};
++
++// Vendor firmware: RALINK_REG_PIO7140 - gpio0: gpio@600
++// Vendor firmware: RALINK_REG_PIO3924 - gpio1: gpio@638
++// Vendor firmware: RALINK_REG_PIO7140 - gpio2: gpio@660
++// Vendor firmware: RALINK_REG_PIO72   - gpio3: gpio@688
++
++&gpio1 {
++	status = "okay";
++};
++
++&gpio2 {
++	status = "okay";
++};
++
++&spi0 {
++	status = "okay";
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <10000000>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			// Vendor partitions:
++			// 0x000000000000-0x000000030000 : "Bootloader"
++			// 0x000000030000-0x000000040000 : "Config"
++			// 0x000000040000-0x000000050000 : "Factory"
++			// 0x000000050000-0x000000070000 : "Cimage"
++			// 0x000000070000-0x000000fe0000 : "Uimage"
++			// 0x000000070000-0x000000190000 : "Kernel"
++			// 0x000000190000-0x000000fe0000 : "RootFS"
++			// 0x000000fe0000-0x000001000000 : "FreeSpace"
++
++			// Bootloader
++			partition@0 {
++				label = "u-boot";
++				reg = <0x0 0x30000>;
++				read-only;
++			};
++
++			// Config
++			partition@30000 {
++				label = "u-boot-env";
++				reg = <0x30000 0x10000>;
++				read-only;
++			};
++
++			// Factory
++			factory: partition@40000 {
++				label = "factory";
++				reg = <0x40000 0x10000>;
++				read-only;
++			};
++
++			// Cimage
++			partition@50000 {
++				label = "cimage";
++				reg = <0x50000 0x20000>;
++				read-only;
++			};
++
++			partition@70000 {
++				compatible = "openwrt,uimage", "denx,uimage";
++				openwrt,offset = <FW_EDIMAX_OFFSET>;
++				openwrt,partition-magic = <FW_MAGIC_EDIMAX>;
++				label = "firmware";
++				reg = <0x00070000 0x00f70000>;
++			};
++
++			// FreeSpace
++			partition@fe0000 {
++				label = "freespace";
++				reg = <0xfe0000 0x20000>;
++				read-only;
++			};
++		};
++	};
++};
++
++&state_default {
++	gpio {
++		// TODO: "spi refclk"?
++		groups = "i2c", "uartf", "rgmii1", "rgmii2", "ephy", "wled", "nd_sd";
++		function = "gpio";
++	};
++};
++
++&ethernet {
++	nvmem-cells = <&macaddr_factory_2e>;
++	nvmem-cell-names = "mac-address";
++
++	mediatek,portmap = "llllw";
++};
++
++&wmac {
++	ralink,mtd-eeprom = <&factory 0x0>;
++};
++
++&pcie {
++	status = "okay";
++};
++
++&pcie0 {
++	wifi@0,0 {
++		reg = <0x0000 0 0 0 0>;
++		mediatek,mtd-eeprom = <&factory 0x8000>;
++		ieee80211-freq-limit = <5000000 6000000>;
++	};
++};
++
++&factory {
++	compatible = "nvmem-cells";
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	macaddr_factory_4: macaddr@4 {
++		reg = <0x4 0x6>;
++	};
++
++	macaddr_factory_2e: macaddr@2e {
++		reg = <0x2e 0x6>;
++	};
++};
+diff --git a/target/linux/ramips/image/mt7620.mk b/target/linux/ramips/image/mt7620.mk
+index 6089750407424512f7ffa55196496b8a932266da..35fee7953464b5465eda6f7d4abb94f7efc6f6e4 100644
+--- a/target/linux/ramips/image/mt7620.mk
++++ b/target/linux/ramips/image/mt7620.mk
+@@ -366,6 +366,22 @@ define Device/dovado_tiny-ac
+ endef
+ TARGET_DEVICES += dovado_tiny-ac
+ 
++define Device/edimax_br-6208ac-v2
++  SOC := mt7620a
++  DEVICE_VENDOR := Edimax
++  DEVICE_MODEL := BR-6208AC
++  DEVICE_VARIANT := V2
++  BLOCKSIZE := 64k
++  IMAGE_SIZE := 7744k
++  IMAGE/sysupgrade.bin := append-kernel | append-rootfs | \
++	edimax-header -s CSYS -m RN71 -f 0x70000 -S 0x01100000 | pad-rootfs | \
++	check-size | append-metadata
++  DEVICE_PACKAGES := kmod-mt76x2 kmod-mt76x0e kmod-phy-realtek \
++	kmod-usb2 kmod-usb-ohci kmod-usb-ledtrig-usbport \
++	uboot-envtools
++endef
++TARGET_DEVICES += edimax_br-6208ac-v2
++
+ define Device/edimax_br-6478ac-v2
+   SOC := mt7620a
+   DEVICE_VENDOR := Edimax
+diff --git a/target/linux/ramips/mt7620/base-files/etc/board.d/01_leds b/target/linux/ramips/mt7620/base-files/etc/board.d/01_leds
+index 1293c34cbf9edcd96452614189dc4232c2392659..c33e2d9bdd3a9dca7564d0a684685c7ca05f7d72 100644
+--- a/target/linux/ramips/mt7620/base-files/etc/board.d/01_leds
++++ b/target/linux/ramips/mt7620/base-files/etc/board.d/01_leds
+@@ -97,6 +97,13 @@ domywifi,dw22d)
+ dovado,tiny-ac)
+ 	ucidef_set_led_netdev "wifi_led" "wifi" "orange:wifi" "wlan0"
+ 	;;
++edimax,br-6208ac-v2)
++	ucidef_set_led_netdev "wan" "Internet" "green:internet" "eth0.2" "tx rx"
++	ucidef_set_led_netdev "wifi_led" "WLAN 2.4 GHz" "green:wlan2g" "wlan1"
++	ucidef_set_led_netdev "wifi_led" "WLAN 5 GHz" "green:wlan5g" "wlan1"
++	ucidef_set_led_netdev "wifi_led" "Firmware" "green:firmware" "wlan1"
++	ucidef_set_led_netdev "lan" "VPN" "green:vpn" "switch0" "0x20"
++	;;
+ edimax,br-6478ac-v2|\
+ edimax,ew-7478apc)
+ 	ucidef_set_led_netdev "wifi_led" "wifi" "blue:wlan" "wlan0"
+diff --git a/target/linux/ramips/mt7620/base-files/etc/board.d/02_network b/target/linux/ramips/mt7620/base-files/etc/board.d/02_network
+index f7bc41669f807aa9d031f370d3d4e713a644b82a..45180527742f8f407133b003ad11efd7b18b4a71 100644
+--- a/target/linux/ramips/mt7620/base-files/etc/board.d/02_network
++++ b/target/linux/ramips/mt7620/base-files/etc/board.d/02_network
+@@ -138,6 +138,10 @@ ramips_setup_interfaces()
+ 			"5:lan" "6@eth0"
+ 		ucidef_add_switch_attr "switch1" "enable" "false"
+ 		;;
++	edimax,br-6208ac-v2)
++		ucidef_add_switch "switch0" \
++			"1:lan:3" "2:lan:2" "3:lan:1" "4:wan" "6@eth0"
++		;;
+ 	edimax,br-6478ac-v2|\
+ 	lb-link,bl-w1200|\
+ 	tplink,archer-c2-v1)
+@@ -263,6 +267,7 @@ ramips_setup_macs()
+ 	asus,rt-n12p|\
+ 	asus,rt-n14u|\
+ 	bdcom,wap2100-sk|\
++	edimax,br-6208ac-v2|\
+ 	edimax,ew-7478apc|\
+ 	fon,fon2601|\
+ 	head-weblink,hdrm200|\
